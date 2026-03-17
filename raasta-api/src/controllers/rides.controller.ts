@@ -11,7 +11,7 @@ export const startRide = async (req: any, res: Response) => {
       sessionId,
       status: 'Active',
       metrics: { distanceKm: 0, durationMs: 0, avgSpeedKmh: 0, maxSpeedKmh: 0, elevationGainM: 0 },
-      route: { type: 'LineString', coordinates: [] },
+      route: { type: 'LineString', coordinates: [[0, 0]] }, // Provide a valid initial coordinate to bypass 2dsphere index crash
       startTime: new Date(),
     });
 
