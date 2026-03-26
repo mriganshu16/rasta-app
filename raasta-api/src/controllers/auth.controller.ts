@@ -1,7 +1,21 @@
 import { Request, Response } from 'express';
 import bcrypt from 'bcrypt';
-import User from '../models/User';
+import User, { IUser } from '../models/User';
 import { generateToken } from '../common/utils/jwt';
+import { AuthRequest } from '../common/middlewares/auth.middleware';
+
+// Shared helper — builds the consistent auth response for both register & login.
+// Returns the full profile so the client is fully signed-in with a single call,
+// with no follow-up GET /profile request needed.
+const buildAuthResponse = (user: IUser) => ({
+  _id: user._id.toString(),
+  username: user.username,
+  email: user.email,
+  profile: user.profile,
+  stats: user.stats,
+  settings: user.settings,
+  token: generateToken(user._id.toString()),
+});
 
 export const registerUser = async (req: Request, res: Response) => {
   try {
@@ -23,16 +37,7 @@ export const registerUser = async (req: Request, res: Response) => {
       profile: { fullName, skillLevel: 'Beginner', achievements: [] },
     });
 
-    if (user) {
-      res.status(201).json({
-        _id: user.id,
-        username: user.username,
-        email: user.email,
-        token: generateToken(user.id),
-      });
-    } else {
-      res.status(400).json({ message: 'Invalid user data' });
-    }
+    res.status(201).json(buildAuthResponse(user));
   } catch (error: any) {
     res.status(500).json({ message: error.message });
   }
@@ -47,12 +52,7 @@ export const loginUser = async (req: Request, res: Response) => {
     if (user && user.auth.passwordHash) {
       const isMatch = await bcrypt.compare(password, user.auth.passwordHash);
       if (isMatch) {
-        res.json({
-          _id: user.id,
-          username: user.username,
-          email: user.email,
-          token: generateToken(user.id),
-        });
+        res.json(buildAuthResponse(user));
         return;
       }
     }
@@ -63,11 +63,15 @@ export const loginUser = async (req: Request, res: Response) => {
   }
 };
 
-export const getUserProfile = async (req: any, res: Response) => {
-  const user = await User.findById(req.user.id).select('-auth.passwordHash');
-  if (user) {
-    res.json(user);
-  } else {
-    res.status(404).json({ message: 'User not found' });
+export const getUserProfile = async (req: AuthRequest, res: Response) => {
+  try {
+    const user = await User.findById(req.user?._id).select('-auth');
+    if (user) {
+      res.json(user);
+    } else {
+      res.status(404).json({ message: 'User not found' });
+    }
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
   }
 };
